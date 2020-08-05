@@ -1,0 +1,10 @@
+[package]
+name = "rsqlite"
+version = "0.1.0"
+authors = ["amin"]
+edition = "2018"
+
+[dependencies]
+sqlite3-sys = "*"
+libc = "*"
+thiserror = "*"
