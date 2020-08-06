@@ -5,7 +5,7 @@ use sqlite3_sys as ffi;
 
 /// Bindable types can bind themselves to a sqlite statement
 pub trait Bindable {
-    /// given an index, binds itself and increments the next
+    /// given an index, binds itself and increments the index
     fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()>;
 }
 
@@ -65,16 +65,47 @@ impl<'a> Bindable for &'a str {
     }
 }
 
-impl<T0, T1, T2> Bindable for (T0, T1, T2)
-where
-    T0: Bindable,
-    T1: Bindable,
-    T2: Bindable,
-{
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        self.0.bind(statement, index)?;
-        self.1.bind(statement, index)?;
-        self.2.bind(statement, index)?;
-        Ok(())
-    }
+macro_rules! bindable {
+    ($($name:ident as $idx:tt),+) => (
+        impl<$($name),+> Bindable for ($($name),+,) where
+            $($name: Bindable),+
+        {
+            fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+                $(self.$idx.bind(statement, index)?;)+
+                Ok(())
+            }
+        }
+    );
 }
+
+bindable!(T0 as 0);
+bindable!(T0 as 0, T1 as 1);
+bindable!(T0 as 0, T1 as 1, T2 as 2);
+bindable!(T0 as 0, T1 as 1, T2 as 2, T3 as 3);
+bindable!(T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4);
+bindable!(T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5);
+bindable!(T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7
+);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7, T8 as 8
+);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7, T8 as 8, T9 as 9
+);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7, T8 as 8, T9 as 9, T10 as 10
+);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7, T8 as 8, T9 as 9, T10 as 10, T11 as 11
+);
+bindable!(
+    T0 as 0, T1 as 1, T2 as 2, T3 as 3, T4 as 4, T5 as 5, T6 as 6,
+    T7 as 7, T8 as 8, T9 as 9, T10 as 10, T11 as 11, T12 as 12
+);

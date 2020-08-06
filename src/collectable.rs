@@ -8,7 +8,7 @@ pub trait Collectable
 where
     Self: Sized,
 {
-    /// given an column, collects itself and returns the next column
+    /// collects itself and increments to next column
     fn collect(statement: &Statement, column: &mut c_int) -> Self;
 }
 
