@@ -54,8 +54,8 @@ pub struct Statement {
 
 /// Bindable types can bind themselves to a sqlite statement
 pub trait Bindable {
-    /// given an index, binds itself and returns the next index
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int>;
+    /// given an index, binds itself and increments the next
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()>;
 }
 /// Collectable types can be parsed from the columns of the sqlite result row
 pub trait Collectable
@@ -133,9 +133,9 @@ impl Database {
     ///
     /// it is expected that the query does to return any data
     /// if you need to return data, you should use `.query()`
-    pub fn execute(&self, sql: &str, arg_or_args: impl Bindable) -> Result<()> {
+    pub fn execute(&self, sql: &str, params: impl Bindable) -> Result<()> {
         let statement = self.prepare(sql)?;
-        arg_or_args.bind(&statement, 1)?;
+        params.bind(&statement, &mut 1)?;
 
         let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
 
@@ -145,12 +145,12 @@ impl Database {
         }
     }
 
-    pub fn collect<R>(&self, sql: &str, arg_or_args: impl Bindable) -> Result<R>
+    pub fn collect<R>(&self, sql: &str, params: impl Bindable) -> Result<R>
     where
         R: Collectable,
     {
         let statement = self.prepare(sql)?;
-        arg_or_args.bind(&statement, 1)?;
+        params.bind(&statement, &mut 1)?;
 
         let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
 
@@ -190,49 +190,52 @@ impl<T> Bindable for &T
 where
     T: Bindable,
 {
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int> {
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
         (*self).bind(statement, index)
     }
 }
 
 impl Bindable for () {
-    fn bind(&self, _statement: &Statement, index: c_int) -> Result<c_int> {
-        Ok(index)
+    fn bind(&self, _statement: &Statement, _index: &mut c_int) -> Result<()> {
+        Ok(())
     }
 }
 impl Bindable for i32 {
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int> {
-        let ecode = unsafe { ffi::sqlite3_bind_int(statement.stmt, index, *self) };
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+        let ecode = unsafe { ffi::sqlite3_bind_int(statement.stmt, *index, *self) };
+        *index += 1;
         match ecode {
-            ffi::SQLITE_OK => Ok(index + 1),
+            ffi::SQLITE_OK => Ok(()),
             other => Err(other.into()),
         }
     }
 }
 impl Bindable for c_double {
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int> {
-        let ecode = unsafe { ffi::sqlite3_bind_double(statement.stmt, index, *self) };
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+        let ecode = unsafe { ffi::sqlite3_bind_double(statement.stmt, *index, *self) };
+        *index += 1;
         match ecode {
-            ffi::SQLITE_OK => Ok(index + 1),
+            ffi::SQLITE_OK => Ok(()),
             other => Err(other.into()),
         }
     }
 }
 /// sqlite3_bind_text() expects a pointer to well-formed UTF8 text (i.e `&str`)
 impl<'a> Bindable for &'a str {
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int> {
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
         let len = self.as_bytes().len() as c_int;
         let ecode = unsafe {
             ffi::sqlite3_bind_text(
                 statement.stmt,
-                index,
+                *index,
                 self.as_ptr() as *const c_char,
                 len,
                 Some(std::mem::transmute(-1isize)), // ffi::SQLITE_TRANSIENT
             )
         };
+        *index += 1;
         match ecode {
-            ffi::SQLITE_OK => Ok(index + 1),
+            ffi::SQLITE_OK => Ok(()),
             other => Err(other.into()),
         }
     }
@@ -244,11 +247,11 @@ where
     T1: Bindable,
     T2: Bindable,
 {
-    fn bind(&self, statement: &Statement, index: c_int) -> Result<c_int> {
-        let index = self.0.bind(statement, index)?;
-        let index = self.1.bind(statement, index)?;
-        let index = self.2.bind(statement, index)?;
-        Ok(index)
+    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+        self.0.bind(statement, index)?;
+        self.1.bind(statement, index)?;
+        self.2.bind(statement, index)?;
+        Ok(())
     }
 }
 
