@@ -2,10 +2,10 @@
 //!
 //! ```
 //! # use rsqlite::*;
-//! 
+//! // open existing database or create a new one
 //! let database = Database::open(":memory:")?;
 //!
-//! // execute a query with no arguments
+//! // execute a query
 //! database.execute(r#"
 //!    create table if not exists user (
 //!       id integer primary key autoincrement not null,
@@ -19,26 +19,53 @@
 //!    "insert into user(age, name, weight) values(?, ?, ?)",
 //!    (29, "amin", 69.5)
 //! )?;
-//!
-//! // collect example
-//! let age: i32 = database.collect("select age from user limit 1", ())?;
-//! assert!(age == 29);
-//!
-//! let info: (i32, String, f64) = database.collect(
-//!     "select age, name, weight from user limit 1", ()
+//! database.execute(
+//!    "insert into user(age, name, weight) values(?, ?, ?)",
+//!    (26, "negar", 61.0)
 //! )?;
-//! assert!(info == (29, "amin".to_owned(), 69.5));
 //!
+//! // collect a single row
+//! let info: (i32, String, f64) = database.collect(
+//!     "select age, name, weight from user where name = ?", ("amin")
+//! )?;
+//! // collect a single row single column
+//! let age: i32 = database.collect(
+//!     "select age from user where name = ?", ("amin")
+//! )?;
+//! # assert!(age == 29);
+//!
+//! // given your own data structure:
+//! #[derive(PartialEq, Debug)]
+//! struct User { name: String, age: i32, weight: f64 };
+//! let mut users = vec![];
+//! // collect multiple rows using `.iterate()`
+//! // returned columns should match the lambda arguments
+//! database.iterate(
+//!     "select name, age, weight from user", (),
+//!     |name: String, age: i32, weight: f64| {
+//!         users.push(User { name, age, weight });
+//!     }
+//! )?;
+//!     
+//! # assert!(users == vec![
+//! #   User { name: "amin".to_owned(), age: 29, weight: 69.5 },
+//! #   User { name: "negar".to_owned(), age: 26, weight: 61.0 }
+//! # ]);
 //! # Ok::<(), RsqliteError>(())
 //! ```
 #![allow(incomplete_features)]
 #![feature(specialization)]
 
 pub mod error;
+pub mod bindable;
+pub mod collectable;
 pub use error::RsqliteError;
+pub use bindable::Bindable;
+pub use collectable::Collectable;
+
 
 use core::ptr;
-use libc::{c_char, c_double, c_int};
+use libc::{c_int};
 use sqlite3_sys as ffi;
 use std::ffi::CString;
 
@@ -50,20 +77,6 @@ pub struct Database {
 
 pub struct Statement {
     pub stmt: *mut ffi::sqlite3_stmt,
-}
-
-/// Bindable types can bind themselves to a sqlite statement
-pub trait Bindable {
-    /// given an index, binds itself and increments the next
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()>;
-}
-/// Collectable types can be parsed from the columns of the sqlite result row
-pub trait Collectable
-where
-    Self: Sized,
-{
-    /// given an column, collects itself and returns the next column
-    fn collect(statement: &Statement, column: &mut c_int) -> Self;
 }
 
 impl Database {
@@ -129,10 +142,10 @@ impl Database {
         }
     }
 
-    /// execute an sqlite query
+    /// Execute an sqlite query.
     ///
-    /// it is expected that the query does to return any data
-    /// if you need to return data, you should use `.query()`
+    /// It is expected that the query does to returns any data,
+    /// if you need to return data, you should use `.query()`.
     pub fn execute(&self, sql: &str, params: impl Bindable) -> Result<()> {
         let statement = self.prepare(sql)?;
         params.bind(&statement, &mut 1)?;
@@ -145,6 +158,19 @@ impl Database {
         }
     }
 
+    /// Execute a query and collect the results.
+    ///
+    /// Your query must return the same column count as type `R`
+    /// If the column index is out of range, the result is undefined.
+    ///
+    ///
+    /// ```
+    /// # use rsqlite::*;
+    /// # let database = Database::open(":memory:")?;
+    /// let result : (i32, String, f64) = database.collect("select 100, 'hello', 3.14;", ())?;
+    /// # assert!(result == (100, "hello".to_owned(), 3.14));
+    /// # Ok::<(), RsqliteError>(())
+    /// ```
     pub fn collect<R>(&self, sql: &str, params: impl Bindable) -> Result<R>
     where
         R: Collectable,
@@ -163,7 +189,70 @@ impl Database {
 
         result
     }
+
+
+    /// iterate over multile rows of data using a colusure
+    ///
+    /// ```
+    /// # use rsqlite::*;
+    /// # let database = Database::open(":memory:")?;
+    /// let mut sum = 0;
+    /// database.iterate("select 2 union select 3", (), |x: i32| { sum += x; })?;
+    /// // sum is 5
+    /// # assert!(sum == 5);
+    /// # Ok::<(), RsqliteError>(())
+    /// ```
+    pub fn iterate<T>(&self, sql: &str, params: impl Bindable, mut iterable: impl Iterable<T>) -> Result<()> {
+        let statement = self.prepare(sql)?;
+        params.bind(&statement, &mut 1)?;
+
+        iterable.iterate(&statement)?;
+
+        let _ = unsafe { ffi::sqlite3_reset(statement.stmt) };
+        Ok(())
+    }
 }
+
+pub trait Iterable<T> {
+    fn iterate(&mut self, statement: &Statement) -> Result<()>;
+}
+
+macro_rules! iterable {
+    ( $($name:ident),+) => (
+        impl<F, $($name),+> Iterable<($($name),+,)> for F where
+            F: FnMut($($name),+) -> (),
+            $($name: Collectable),+
+        {
+            fn iterate(&mut self, statement: &Statement) -> Result<()> {
+                loop {
+                    let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
+                    let mut index = 0;
+
+                    match retcode {
+                        ffi::SQLITE_ROW => (*self)(
+                            $($name::collect(statement, &mut index)),+
+                        ),
+                        ffi::SQLITE_DONE => break Ok(()),
+                        other => break Err(other.into()),
+                    };
+                }
+            }
+        }
+    );
+}
+
+iterable!(T0);
+iterable!(T0, T1);
+iterable!(T0, T1, T2);
+iterable!(T0, T1, T2, T4);
+iterable!(T0, T1, T2, T4, T5);
+iterable!(T0, T1, T2, T4, T5, T6);
+iterable!(T0, T1, T2, T4, T5, T6, T7);
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8);
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9);
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10);
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11);
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 impl Drop for Database {
     /// closes the `*mut sqlite3` handle on Drop
@@ -182,123 +271,6 @@ impl Drop for Statement {
             ffi::sqlite3_finalize(self.stmt);
             self.stmt = ptr::null_mut();
         }
-    }
-}
-
-/// allow binding with `&T` if `T` is Bindable
-impl<T> Bindable for &T
-where
-    T: Bindable,
-{
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        (*self).bind(statement, index)
-    }
-}
-
-impl Bindable for () {
-    fn bind(&self, _statement: &Statement, _index: &mut c_int) -> Result<()> {
-        Ok(())
-    }
-}
-impl Bindable for i32 {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        let ecode = unsafe { ffi::sqlite3_bind_int(statement.stmt, *index, *self) };
-        *index += 1;
-        match ecode {
-            ffi::SQLITE_OK => Ok(()),
-            other => Err(other.into()),
-        }
-    }
-}
-impl Bindable for c_double {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        let ecode = unsafe { ffi::sqlite3_bind_double(statement.stmt, *index, *self) };
-        *index += 1;
-        match ecode {
-            ffi::SQLITE_OK => Ok(()),
-            other => Err(other.into()),
-        }
-    }
-}
-/// sqlite3_bind_text() expects a pointer to well-formed UTF8 text (i.e `&str`)
-impl<'a> Bindable for &'a str {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        let len = self.as_bytes().len() as c_int;
-        let ecode = unsafe {
-            ffi::sqlite3_bind_text(
-                statement.stmt,
-                *index,
-                self.as_ptr() as *const c_char,
-                len,
-                Some(std::mem::transmute(-1isize)), // ffi::SQLITE_TRANSIENT
-            )
-        };
-        *index += 1;
-        match ecode {
-            ffi::SQLITE_OK => Ok(()),
-            other => Err(other.into()),
-        }
-    }
-}
-
-impl<T0, T1, T2> Bindable for (T0, T1, T2)
-where
-    T0: Bindable,
-    T1: Bindable,
-    T2: Bindable,
-{
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
-        self.0.bind(statement, index)?;
-        self.1.bind(statement, index)?;
-        self.2.bind(statement, index)?;
-        Ok(())
-    }
-}
-
-impl Collectable for () {
-    fn collect(_statement: &Statement, _column: &mut c_int) -> Self {}
-}
-impl Collectable for c_int {
-    fn collect(statement: &Statement, column: &mut c_int) -> Self {
-        let result = unsafe { ffi::sqlite3_column_int(statement.stmt, *column) };
-        *column += 1;
-        result
-    }
-}
-impl Collectable for c_double {
-    fn collect(statement: &Statement, column: &mut c_int) -> Self {
-        let result = unsafe { ffi::sqlite3_column_double(statement.stmt, *column) };
-        *column += 1;
-        result
-    }
-}
-impl Collectable for String {
-    fn collect(statement: &Statement, column: &mut c_int) -> Self {
-        let ptr = unsafe { ffi::sqlite3_column_text(statement.stmt, *column) };
-        let bytes = unsafe { ffi::sqlite3_column_bytes(statement.stmt, *column) };
-
-        *column += 1;
-
-        match bytes == 0 {
-            true => String::new(),
-            false => unsafe {
-                let slice = std::slice::from_raw_parts(ptr as *const u8, bytes as usize);
-                String::from_utf8_unchecked(slice.to_owned())
-            },
-        }
-    }
-}
-impl<T0, T1, T2> Collectable for (T0, T1, T2)
-    where T0 : Collectable,
-          T1: Collectable,
-          T2: Collectable,
-{
-    fn collect(statement: &Statement, column: &mut c_int) -> Self {
-        let t0 = T0::collect(statement, column);
-        let t1 = T1::collect(statement, column);
-        let t2 = T2::collect(statement, column);
-
-        (t0, t1, t2)
     }
 }
 
