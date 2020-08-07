@@ -19,10 +19,16 @@ where
             other => Err(other.into()),
         }
     }
+
+    /// number of columns that this type needs
+    fn columns_needed() -> c_int;
 }
 
 impl Collectable for () {
     fn collect(_statement: &Statement, _column: &mut c_int) -> Self {}
+    fn columns_needed() -> c_int {
+        0
+    }
 }
 impl<T> Collectable for Option<T>
 where
@@ -47,6 +53,9 @@ where
             other => Err(other.into()),
         }
     }
+    fn columns_needed() -> c_int {
+        T::columns_needed()
+    }
 }
 impl Collectable for c_int {
     fn collect(statement: &Statement, column: &mut c_int) -> Self {
@@ -54,12 +63,18 @@ impl Collectable for c_int {
         *column += 1;
         result
     }
+    fn columns_needed() -> c_int {
+        1
+    }
 }
 impl Collectable for c_double {
     fn collect(statement: &Statement, column: &mut c_int) -> Self {
         let result = unsafe { ffi::sqlite3_column_double(statement.stmt, *column) };
         *column += 1;
         result
+    }
+    fn columns_needed() -> c_int {
+        1
     }
 }
 impl Collectable for String {
@@ -77,6 +92,9 @@ impl Collectable for String {
             },
         }
     }
+    fn columns_needed() -> c_int {
+        1
+    }
 }
 impl Collectable for Box<[u8]> {
     fn collect(statement: &Statement, column: &mut c_int) -> Self {
@@ -93,10 +111,13 @@ impl Collectable for Box<[u8]> {
             },
         }
     }
+    fn columns_needed() -> c_int {
+        1
+    }
 }
 
 macro_rules! collectable_tuple {
-    ($($name: ident),+) => (
+    ($columns_needed:expr, $($name: ident),+) => (
         impl<$($name),+> Collectable for ($($name,)+)
         where
             $($name: Collectable,)+
@@ -106,20 +127,21 @@ macro_rules! collectable_tuple {
                     $($name::collect(statement, column),)+
                 )
             }
+            fn columns_needed() -> c_int { $columns_needed }
         }
     );
 }
 
-collectable_tuple!(T0);
-collectable_tuple!(T0, T1);
-collectable_tuple!(T0, T1, T2);
-collectable_tuple!(T0, T1, T2, T3);
-collectable_tuple!(T0, T1, T2, T3, T4);
-collectable_tuple!(T0, T1, T2, T3, T4, T5);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12); 
+collectable_tuple!(1, T0);
+collectable_tuple!(2, T0, T1);
+collectable_tuple!(3, T0, T1, T2);
+collectable_tuple!(4, T0, T1, T2, T3);
+collectable_tuple!(5, T0, T1, T2, T3, T4);
+collectable_tuple!(6, T0, T1, T2, T3, T4, T5);
+collectable_tuple!(7, T0, T1, T2, T3, T4, T5, T6);
+collectable_tuple!(8, T0, T1, T2, T3, T4, T5, T6, T7);
+collectable_tuple!(9, T0, T1, T2, T3, T4, T5, T6, T7, T8);
+collectable_tuple!(10, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+collectable_tuple!(11, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+collectable_tuple!(12, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+collectable_tuple!(13, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);

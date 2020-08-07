@@ -113,7 +113,7 @@
 //! # use rsqlite::*;
 //! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
-//! // use `None` to insert NULL values 
+//! // use `None` to insert NULL values
 //! database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 //!
 //! // use Option<T> to collect them back
@@ -150,6 +150,15 @@
 //! |BLOB         |TEXT 	     |Add a zero terminator if needed
 //!
 //! i.e if you collect a `NULL` column as `i32`, you'll get `0`.
+//!
+//! # Transactions
+//! You can use transactions with `begin`, `commit` and `rollback` commands.
+//! # use rsqlite::*;
+//! # let database = Database::open(":memory:")?;
+//! # database.execute("create table user (name text, age int)", ())?;
+//!
+//! db.execute("begin", ())?; // begin a transaction
+//! ```
 
 pub mod bindable;
 pub mod collectable;
@@ -175,6 +184,7 @@ pub struct Database {
 
 pub struct Statement<'a> {
     pub stmt: *mut ffi::sqlite3_stmt,
+    column_count: c_int,
     _marker: PhantomData<&'a ()>,
 }
 
@@ -234,13 +244,18 @@ impl Database {
             ffi::sqlite3_prepare_v2(self.db, sql.as_ptr(), len, &mut stmt, ptr::null_mut())
         };
 
-        let statement = Statement {
-            stmt,
-            _marker: PhantomData,
-        };
         match retcode {
-            ffi::SQLITE_OK => Ok(statement),
-            other => Err(other.into()),
+            ffi::SQLITE_OK => Ok(Statement {
+                column_count: unsafe { ffi::sqlite3_column_count(stmt) },
+                stmt,
+                _marker: PhantomData,
+            }),
+            other => {
+                unsafe {
+                    ffi::sqlite3_finalize(stmt);
+                }
+                Err(other.into())
+            }
         }
     }
 
@@ -250,21 +265,13 @@ impl Database {
     /// if you need to return data, you should use `.query()`.
     pub fn execute(&self, sql: &str, params: impl Bindable) -> Result<()> {
         let mut statement = self.prepare(sql)?;
-        params.bind(&mut statement, &mut 1)?;
-
-        let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
-
-        match retcode {
-            ffi::SQLITE_DONE => Ok(()),
-            other => Err(other.into()),
-        }
+        statement.execute(params)
     }
 
     /// Execute a query and collect the results.
     ///
     /// Your query must return the same column count as type `R`
-    /// If the column index is out of range, the result is undefined.
-    ///
+    /// If the column index is out of range, you will get `Err(SQLITE_RANGE)`
     ///
     /// ```
     /// # use rsqlite::*;
@@ -277,7 +284,6 @@ impl Database {
     where
         R: Collectable,
     {
-
         let mut statement = self.prepare(sql)?;
         statement.collect(params)
     }
@@ -305,10 +311,24 @@ impl Database {
 }
 
 impl<'a> Statement<'a> {
+    pub fn execute(&mut self, params: impl Bindable) -> Result<()> {
+        params.bind(self, &mut 1)?;
+
+        let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
+
+        match retcode {
+            ffi::SQLITE_DONE => Ok(()),
+            other => Err(other.into()),
+        }
+    }
+
     pub fn collect<R>(&mut self, params: impl Bindable) -> Result<R>
     where
         R: Collectable,
     {
+        if R::columns_needed() > self.column_count {
+            return Err(ffi::SQLITE_RANGE.into());
+        }
         params.bind(self, &mut 1)?;
 
         let result = R::step_and_collect(self);
@@ -316,6 +336,7 @@ impl<'a> Statement<'a> {
         let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
         result
     }
+
     pub fn for_each<T>(
         &mut self,
         params: impl Bindable,

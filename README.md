@@ -127,3 +127,12 @@ implsit type convertions in sqlite follow this table:
 |BLOB         |TEXT 	     |Add a zero terminator if needed
 
 i.e if you collect a `NULL` column as `i32`, you'll get `0`.
+
+## Transactions
+You can use transactions with `begin`, `commit` and `rollback` commands.
+## use rsqlite::*;
+## let database = Database::open(":memory:")?;
+## database.execute("create table user (name text, age int)", ())?;
+
+db.execute("begin", ())?; // begin a transaction
+```rust
