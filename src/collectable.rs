@@ -103,27 +103,23 @@ macro_rules! collectable_tuple {
         {
             fn collect(statement: &Statement, column: &mut c_int) -> Self {
                 (
-                    $($name::collect(statement, column)),+
+                    $($name::collect(statement, column),)+
                 )
             }
         }
     );
 }
 
+collectable_tuple!(T0);
 collectable_tuple!(T0, T1);
-
-// TODO: impl for T1 to T12
-impl<T0, T1, T2> Collectable for (T0, T1, T2)
-where
-    T0: Collectable,
-    T1: Collectable,
-    T2: Collectable,
-{
-    fn collect(statement: &Statement, column: &mut c_int) -> Self {
-        (
-            T0::collect(statement, column),
-            T1::collect(statement, column),
-            T2::collect(statement, column),
-        )
-    }
-}
+collectable_tuple!(T0, T1, T2);
+collectable_tuple!(T0, T1, T2, T3);
+collectable_tuple!(T0, T1, T2, T3, T4);
+collectable_tuple!(T0, T1, T2, T3, T4, T5);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+collectable_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12); 

@@ -8,9 +8,9 @@ pub trait Iterable<R, T> {
     fn iterate(&mut self, statement: &mut Statement, index: &mut c_int) -> R;
 }
 
-macro_rules! iterable {
+macro_rules! iterable_fn_mut {
     ($($name:ident),+) => (
-        impl<F, R, $($name),+> Iterable<R, ($($name),+,)> for F where
+        impl<F, R, $($name),+> Iterable<R, ($($name,)+)> for F where
             F: FnMut($($name),+) -> R,
             $($name: Collectable),+
         {
@@ -21,15 +21,15 @@ macro_rules! iterable {
     );
 }
 
-iterable!(T0);
-iterable!(T0, T1);
-iterable!(T0, T1, T2);
-iterable!(T0, T1, T2, T4);
-iterable!(T0, T1, T2, T4, T5);
-iterable!(T0, T1, T2, T4, T5, T6);
-iterable!(T0, T1, T2, T4, T5, T6, T7);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+iterable_fn_mut!(T0);
+iterable_fn_mut!(T0, T1);
+iterable_fn_mut!(T0, T1, T2);
+iterable_fn_mut!(T0, T1, T2, T4);
+iterable_fn_mut!(T0, T1, T2, T4, T5);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7, T8);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7, T8, T9);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11);
+iterable_fn_mut!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11, T12);

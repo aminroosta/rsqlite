@@ -59,6 +59,7 @@
 //! let amin: (i32, String, f64) = database.collect(
 //!     "select age, name, weight from user where name = ?", ("amin")
 //! )?;
+//! # assert!(amin == (29, "amin".to_owned(), 69.5));
 //!
 //! // this also works, the returned value will be automatically converted to String
 //! let str_count: String = database.collect("select count(*) from user", ())?;
@@ -116,14 +117,11 @@
 //! database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 //!
 //! // use Option<T> to collect them back
-//! let age : i32 = database.collect("select age from user limit 1", ())?;
-//! dbg!(&age);
-//! assert!( age == 20);
-//! //let (name, age) : (String, i32) = database.collect("select name from user limit 1", ())?;
-//! //dbg!(&name, &age);
-//! //assert!((name, age) == (None, 20));
+//! let (name, age) : (Option<String>, i32) =
+//!                       database.collect("select name, age from user limit 1", ())?;
+//! assert!((name, age) == (None, 20));
 //!
-//! // collecting an empty result set, would also return None
+//! // an empty result set, would also be treated as None
 //! let name : Option<String> = database.collect("select name from user where age = ?", (200))?;
 //! assert!(name == None);
 //! # Ok::<(), RsqliteError>(())
