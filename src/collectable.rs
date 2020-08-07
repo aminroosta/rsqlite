@@ -95,6 +95,23 @@ impl Collectable for Box<[u8]> {
     }
 }
 
+macro_rules! collectable_tuple {
+    ($($name: ident),+) => (
+        impl<$($name),+> Collectable for ($($name,)+)
+        where
+            $($name: Collectable,)+
+        {
+            fn collect(statement: &Statement, column: &mut c_int) -> Self {
+                (
+                    $($name::collect(statement, column)),+
+                )
+            }
+        }
+    );
+}
+
+collectable_tuple!(T0, T1);
+
 // TODO: impl for T1 to T12
 impl<T0, T1, T2> Collectable for (T0, T1, T2)
 where

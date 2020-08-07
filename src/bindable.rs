@@ -31,6 +31,7 @@ where
         match &self {
             None => {
                 let ecode = unsafe { ffi::sqlite3_bind_null(statement.stmt, *index) };
+                dbg!(&index);
                 *index += 1;
                 match ecode {
                     ffi::SQLITE_OK => Ok(()),

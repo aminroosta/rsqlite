@@ -112,12 +112,16 @@
 //! # use rsqlite::*;
 //! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
-//! // to insert NULL values use None
+//! // use `None` to insert NULL values 
 //! database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 //!
 //! // use Option<T> to collect them back
-//! let name : Option<String> = database.collect("select name from user where age = ?", (20))?;
-//! assert!(name == None);
+//! let age : i32 = database.collect("select age from user limit 1", ())?;
+//! dbg!(&age);
+//! assert!( age == 20);
+//! //let (name, age) : (String, i32) = database.collect("select name from user limit 1", ())?;
+//! //dbg!(&name, &age);
+//! //assert!((name, age) == (None, 20));
 //!
 //! // collecting an empty result set, would also return None
 //! let name : Option<String> = database.collect("select name from user where age = ?", (200))?;
@@ -275,6 +279,7 @@ impl Database {
     where
         R: Collectable,
     {
+
         let mut statement = self.prepare(sql)?;
         statement.collect(params)
     }
