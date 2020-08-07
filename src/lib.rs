@@ -4,9 +4,9 @@
 //! # use rsqlite::*;
 //! // creates a database file 'dbfile.db' if it does not exists.
 //! # /*
-//! let mut database = Database::open("dbfile.db")?;
+//! let database = Database::open("dbfile.db")?;
 //! # */
-//! # let mut database = Database::open(":memory:")?;
+//! # let database = Database::open(":memory:")?;
 //!
 //! // executes the query and creates a 'user' table
 //! database.execute(r#"
@@ -80,7 +80,7 @@
 //! # use rsqlite::RsqliteError;
 //!
 //! let flags = ffi::SQLITE_READONLY;
-//! let mut database = Database::open_with_flags("dbfile.db", flags)?;
+//! let database = Database::open_with_flags("dbfile.db", flags)?;
 //!
 //! // now you can only read from the database
 //! let n: i32 = database.collect(
@@ -94,27 +94,33 @@
 //! increase the performance significantly if the statement is reused.
 //! ```
 //! # use rsqlite::*;
-//! # let mut database = Database::open(":memory:")?;
+//! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
 //! let mut statement = database.prepare("select age from user where age > ?")?;
 //! // Database methods are simply implemented in terms of statements.
 //! statement.for_each((27), |age: i32| {
 //!     dbg!(age);
 //! })?;
+//!
+//! let age: i32 = database.prepare("select count(*) from user where age > ? limit 1")?
+//!                        .collect((200))?;
 //! # Ok::<(), RsqliteError>(())
 //! ```
 //! # NULL values
 //! If you have NULLABLE columes, you can use `Option<T>` to pass and collect the values.
 //! ```
 //! # use rsqlite::*;
-//! # let mut database = Database::open(":memory:")?;
+//! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
 //! // to insert NULL values use None
 //! database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 //!
 //! // use Option<T> to collect them back
 //! let name : Option<String> = database.collect("select name from user where age = ?", (20))?;
+//! assert!(name == None);
 //!
+//! // collecting an empty result set, would also return None
+//! let name : Option<String> = database.collect("select name from user where age = ?", (200))?;
 //! assert!(name == None);
 //! # Ok::<(), RsqliteError>(())
 //! ```
@@ -124,10 +130,10 @@
 //!
 //! |Internal Type|Requested Type|Conversion
 //! |-------------|--------------|----------
-//! |NULL         |INTEGER 	     |Result is 0
-//! |NULL         |FLOAT 	     |Result is 0.0
-//! |NULL         |TEXT 	     |Result is a NULL pointer
-//! |NULL         |BLOB 	     |Result is a NULL pointer
+//! |NULL         |i32/i64 	     |Result is 0
+//! |NULL         |f64   	     |Result is 0.0
+//! |NULL         |String        |Result is empty `String::new()`
+//! |NULL         |Box<[u8]>     |Result is empty `Box::new([])`
 //! |INTEGER      |FLOAT 	     |Convert from integer to float
 //! |INTEGER      |TEXT 	     |ASCII rendering of the integer
 //! |INTEGER      |BLOB 	     |Same as INTEGER->TEXT
@@ -167,7 +173,7 @@ pub struct Database {
 
 pub struct Statement<'a> {
     pub stmt: *mut ffi::sqlite3_stmt,
-    _marker: PhantomData<&'a Database>,
+    _marker: PhantomData<&'a ()>,
 }
 
 impl Database {
@@ -175,7 +181,7 @@ impl Database {
     ///
     /// ```
     /// # use rsqlite::*;
-    /// let mut database = Database::open(":memory:")?;
+    /// let database = Database::open(":memory:")?;
     /// # assert!(!database.db.is_null());
     /// # Ok::<(), RsqliteError>(())
     /// ```
@@ -189,7 +195,7 @@ impl Database {
     /// # use rsqlite::*;
     /// use sqlite3_sys as ffi;
     ///
-    /// let mut database = Database::open_with_flags(
+    /// let database = Database::open_with_flags(
     ///     ":memory:",
     ///     ffi::SQLITE_OPEN_CREATE | ffi::SQLITE_OPEN_READWRITE
     /// )?;
@@ -213,12 +219,12 @@ impl Database {
     ///
     /// ```
     /// # use rsqlite::*;
-    /// # let mut database = Database::open(":memory:")?;
+    /// # let database = Database::open(":memory:")?;
     /// let statement = database.prepare("select 1+2;")?;
     /// # assert!(!statement.stmt.is_null());
     /// # Ok::<(), RsqliteError>(())
     /// ```
-    pub fn prepare(&mut self, sql: &str) -> Result<Statement<'_>> {
+    pub fn prepare(&self, sql: &str) -> Result<Statement<'_>> {
         let sql = CString::new(sql)?;
         let mut stmt = ptr::null_mut();
         let len = sql.as_bytes_with_nul().len() as i32;
@@ -240,7 +246,7 @@ impl Database {
     ///
     /// It is expected that the query does to returns any data,
     /// if you need to return data, you should use `.query()`.
-    pub fn execute(&mut self, sql: &str, params: impl Bindable) -> Result<()> {
+    pub fn execute(&self, sql: &str, params: impl Bindable) -> Result<()> {
         let mut statement = self.prepare(sql)?;
         params.bind(&mut statement, &mut 1)?;
 
@@ -260,12 +266,12 @@ impl Database {
     ///
     /// ```
     /// # use rsqlite::*;
-    /// # let mut database = Database::open(":memory:")?;
+    /// # let database = Database::open(":memory:")?;
     /// let result : (i32, String, f64) = database.collect("select 100, 'hello', 3.14;", ())?;
     /// # assert!(result == (100, "hello".to_owned(), 3.14));
     /// # Ok::<(), RsqliteError>(())
     /// ```
-    pub fn collect<R>(&mut self, sql: &str, params: impl Bindable) -> Result<R>
+    pub fn collect<R>(&self, sql: &str, params: impl Bindable) -> Result<R>
     where
         R: Collectable,
     {
@@ -277,7 +283,7 @@ impl Database {
     ///
     /// ```
     /// # use rsqlite::*;
-    /// # let mut database = Database::open(":memory:")?;
+    /// # let database = Database::open(":memory:")?;
     /// let mut sum = 0;
     /// database.for_each("select 2 union select 3", (), |x: i32| { sum += x; })?;
     /// // sum is 5
@@ -285,7 +291,7 @@ impl Database {
     /// # Ok::<(), RsqliteError>(())
     /// ```
     pub fn for_each<T>(
-        &mut self,
+        &self,
         sql: &str,
         params: impl Bindable,
         iterable: impl Iterable<(), T>,
@@ -302,15 +308,9 @@ impl<'a> Statement<'a> {
     {
         params.bind(self, &mut 1)?;
 
-        let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
-
-        let result = match retcode {
-            ffi::SQLITE_ROW => Ok(R::collect(self, &mut 0)),
-            other => Err(other.into()),
-        };
+        let result = R::step_and_collect(self);
 
         let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
-
         result
     }
     pub fn for_each<T>(

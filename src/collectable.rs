@@ -1,4 +1,4 @@
-use super::Statement;
+use super::{Result, Statement};
 
 use libc::{c_double, c_int};
 use sqlite3_sys as ffi;
@@ -10,6 +10,15 @@ where
 {
     /// collects itself and increments to next column
     fn collect(statement: &Statement, column: &mut c_int) -> Self;
+
+    fn step_and_collect(statement: &mut Statement) -> Result<Self> {
+        let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
+
+        match retcode {
+            ffi::SQLITE_ROW => Ok(Self::collect(statement, &mut 0)),
+            other => Err(other.into()),
+        }
+    }
 }
 
 impl Collectable for () {
@@ -27,6 +36,15 @@ where
                 None
             }
             _ => Some(T::collect(statement, column)),
+        }
+    }
+    fn step_and_collect(statement: &mut Statement) -> Result<Self> {
+        let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
+
+        match retcode {
+            ffi::SQLITE_ROW => Ok(Self::collect(statement, &mut 0)),
+            ffi::SQLITE_DONE => Ok(None),
+            other => Err(other.into()),
         }
     }
 }
