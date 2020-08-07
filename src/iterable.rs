@@ -21,7 +21,7 @@ use sqlite3_sys as ffi;
 ///     }
 /// }
 ///
-/// let database = Database::open(":memory:")?;
+/// let mut database = Database::open(":memory:")?;
 /// database.execute("create table user (name text, age int)", ())?;
 /// database.execute("insert into user(name, age) values(?, ?)", ("amin", 29))?;
 /// database.execute("insert into user(name, age) values(?, ?)", ("negar", 26))?;

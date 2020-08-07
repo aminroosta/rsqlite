@@ -5,8 +5,7 @@ use sqlite3_sys as ffi;
 /// Bindable types can bind themselves to a sqlite statement
 pub trait Bindable {
     /// given an index, binds itself and increments the index
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()>;
-    // fn bind(param: impl AsRef<Self>, statement: &Statement, index: &mut c_int) -> Result<()>;
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()>;
 }
 
 /// allow binding with `&T` if `T` is Bindable
@@ -14,18 +13,18 @@ impl<T> Bindable for &T
 where
     T: Bindable,
 {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         (*self).bind(statement, index)
     }
 }
 
 impl Bindable for () {
-    fn bind(&self, _statement: &Statement, _index: &mut c_int) -> Result<()> {
+    fn bind(&self, _statement: &mut Statement, _index: &mut c_int) -> Result<()> {
         Ok(())
     }
 }
 impl Bindable for i32 {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let ecode = unsafe { ffi::sqlite3_bind_int(statement.stmt, *index, *self) };
         *index += 1;
         match ecode {
@@ -35,7 +34,7 @@ impl Bindable for i32 {
     }
 }
 impl Bindable for c_double {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let ecode = unsafe { ffi::sqlite3_bind_double(statement.stmt, *index, *self) };
         *index += 1;
         match ecode {
@@ -45,7 +44,7 @@ impl Bindable for c_double {
     }
 }
 impl Bindable for ffi::sqlite3_int64 {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let ecode = unsafe { ffi::sqlite3_bind_int64(statement.stmt, *index, *self) };
         *index += 1;
         match ecode {
@@ -56,7 +55,7 @@ impl Bindable for ffi::sqlite3_int64 {
 }
 /// sqlite3_bind_text() expects a pointer to well-formed UTF8 text (i.e `&str`)
 impl<'a> Bindable for &'a str {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let len = self.as_bytes().len() as c_int;
         let ecode = unsafe {
             ffi::sqlite3_bind_text(
@@ -76,7 +75,7 @@ impl<'a> Bindable for &'a str {
 }
 /// `&[u8]` is treated as sqlite `blob` data type
 impl<'a> Bindable for &'a [u8] {
-    fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let ecode = unsafe {
             ffi::sqlite3_bind_blob(
                 statement.stmt,
@@ -100,7 +99,7 @@ macro_rules! bindable_tuple {
         impl<$($name),+> Bindable for ($($name),+,) where
             $($name: Bindable),+
         {
-            fn bind(&self, statement: &Statement, index: &mut c_int) -> Result<()> {
+            fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
                 $(self.$idx.bind(statement, index)?;)+
                 Ok(())
             }
