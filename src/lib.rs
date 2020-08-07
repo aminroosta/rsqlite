@@ -1,5 +1,3 @@
-//! # Rsqlite
-//!
 //! This library is a zero-overhead, ergonamic wrapper over sqlite C api.
 //!
 //! ```
