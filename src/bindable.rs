@@ -23,6 +23,24 @@ impl Bindable for () {
         Ok(())
     }
 }
+impl<T> Bindable for Option<T>
+where
+    T: Bindable,
+{
+    fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
+        match &self {
+            None => {
+                let ecode = unsafe { ffi::sqlite3_bind_null(statement.stmt, *index) };
+                *index += 1;
+                match ecode {
+                    ffi::SQLITE_OK => Ok(()),
+                    other => Err(other.into()),
+                }
+            }
+            Some(t) => t.bind(statement, index),
+        }
+    }
+}
 impl Bindable for i32 {
     fn bind(&self, statement: &mut Statement, index: &mut c_int) -> Result<()> {
         let ecode = unsafe { ffi::sqlite3_bind_int(statement.stmt, *index, *self) };

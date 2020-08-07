@@ -85,4 +85,38 @@ statement.for_each((27), |age: i32| {
     dbg!(age);
 })?;
 ```
+## NULL values
+If you have NULLABLE columes, you can use `Option<T>` to pass and collect the values.
+```rust
+// to insert NULL values use None
+database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 
+// use Option<T> to collect them back
+let name : Option<String> = database.collect("select name from user where age = ?", (20))?;
+
+assert!(name == None);
+```
+## Type conversions
+
+implsit type convertions in sqlite follow this table:
+
+|Internal Type|Requested Type|Conversion
+|-------------|--------------|----------
+|NULL         |INTEGER 	     |Result is 0
+|NULL         |FLOAT 	     |Result is 0.0
+|NULL         |TEXT 	     |Result is a NULL pointer
+|NULL         |BLOB 	     |Result is a NULL pointer
+|INTEGER      |FLOAT 	     |Convert from integer to float
+|INTEGER      |TEXT 	     |ASCII rendering of the integer
+|INTEGER      |BLOB 	     |Same as INTEGER->TEXT
+|FLOAT        |INTEGER 	     |CAST to INTEGER
+|FLOAT        |TEXT 	     |ASCII rendering of the float
+|FLOAT        |BLOB 	     |CAST to BLOB
+|TEXT         |INTEGER 	     |CAST to INTEGER
+|TEXT         |FLOAT 	     |CAST to REAL
+|TEXT         |BLOB 	     |No change
+|BLOB         |INTEGER 	     |CAST to INTEGER
+|BLOB         |FLOAT 	     |CAST to REAL
+|BLOB         |TEXT 	     |Add a zero terminator if needed
+
+i.e if you collect a `NULL` column as `i32`, you'll get `0`.

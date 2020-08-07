@@ -103,7 +103,45 @@
 //! })?;
 //! # Ok::<(), RsqliteError>(())
 //! ```
+//! # NULL values
+//! If you have NULLABLE columes, you can use `Option<T>` to pass and collect the values.
+//! ```
+//! # use rsqlite::*;
+//! # let mut database = Database::open(":memory:")?;
+//! # database.execute("create table user (name text, age int)", ())?;
+//! // to insert NULL values use None
+//! database.execute("insert into user(name, age) values (?,?)", (None::<&str>, 20))?;
 //!
+//! // use Option<T> to collect them back
+//! let name : Option<String> = database.collect("select name from user where age = ?", (20))?;
+//!
+//! assert!(name == None);
+//! # Ok::<(), RsqliteError>(())
+//! ```
+//! # Type conversions
+//!
+//! implsit type convertions in sqlite follow this table:
+//!
+//! |Internal Type|Requested Type|Conversion
+//! |-------------|--------------|----------
+//! |NULL         |INTEGER 	     |Result is 0
+//! |NULL         |FLOAT 	     |Result is 0.0
+//! |NULL         |TEXT 	     |Result is a NULL pointer
+//! |NULL         |BLOB 	     |Result is a NULL pointer
+//! |INTEGER      |FLOAT 	     |Convert from integer to float
+//! |INTEGER      |TEXT 	     |ASCII rendering of the integer
+//! |INTEGER      |BLOB 	     |Same as INTEGER->TEXT
+//! |FLOAT        |INTEGER 	     |CAST to INTEGER
+//! |FLOAT        |TEXT 	     |ASCII rendering of the float
+//! |FLOAT        |BLOB 	     |CAST to BLOB
+//! |TEXT         |INTEGER 	     |CAST to INTEGER
+//! |TEXT         |FLOAT 	     |CAST to REAL
+//! |TEXT         |BLOB 	     |No change
+//! |BLOB         |INTEGER 	     |CAST to INTEGER
+//! |BLOB         |FLOAT 	     |CAST to REAL
+//! |BLOB         |TEXT 	     |Add a zero terminator if needed
+//!
+//! i.e if you collect a `NULL` column as `i32`, you'll get `0`.
 
 pub mod bindable;
 pub mod collectable;
@@ -296,28 +334,6 @@ impl<'a> Statement<'a> {
         let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
         result
     }
-
-    // pub fn iterate<T, R>(
-    //     &mut self,
-    //     params: impl Bindable,
-    //     mut iterable: impl Iterable<T, R>,
-    // ) -> Result<()> {
-    //     params.bind(self, &mut 1)?;
-
-    //     let result = loop {
-    //         let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
-    //         let mut index = 0;
-
-    //         match retcode {
-    //             ffi::SQLITE_ROW => iterable.iterate(self, &mut index),
-    //             ffi::SQLITE_DONE => break Ok(()),
-    //             other => break Err(other.into()),
-    //         };
-    //     };
-
-    //     let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
-    //     result
-    // }
 }
 
 impl Drop for Database {
