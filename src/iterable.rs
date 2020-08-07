@@ -6,16 +6,24 @@ use libc::c_int;
 /// Note that the return type `R` comes first in the generic parameter list
 pub trait Iterable<R, T> {
     fn iterate(&mut self, statement: &mut Statement, index: &mut c_int) -> R;
+
+    /// number of columns needed by this type
+    fn columns_needed() -> c_int;
 }
 
 macro_rules! iterable_fn_mut {
     ($($name:ident),+) => (
         impl<F, R, $($name),+> Iterable<R, ($($name,)+)> for F where
             F: FnMut($($name),+) -> R,
+            ($($name,)+) : Collectable,
             $($name: Collectable),+
         {
             fn iterate(&mut self, statement: &mut Statement, index: &mut c_int) -> R {
                 (*self)($($name::collect(statement, index)),+)
+            }
+            /// number of columns needed by this type
+            fn columns_needed() -> c_int {
+                <($($name,)+)>::columns_needed()
             }
         }
     );

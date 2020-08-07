@@ -153,11 +153,28 @@
 //!
 //! # Transactions
 //! You can use transactions with `begin`, `commit` and `rollback` commands.
+//!
+//! ```
 //! # use rsqlite::*;
 //! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
 //!
-//! db.execute("begin", ())?; // begin a transaction
+//! database.execute("begin", ())?; // begin a transaction ...
+//! let mut statement = database.prepare("insert into user(name, age) values (?, ?)")?;
+//! // insert 10 users using a prepared statement
+//! for age in 0..10 {
+//!   let name = format!("user-{}", age);
+//!   statement.execute((name.as_str(), age))?;
+//! }
+//! database.execute("commit", ())?;          // commit all the changes
+//!
+//! database.execute("begin", ())?;    // begin another transaction ...
+//! database.execute("delete from user where age > ?", (3))?;
+//! database.execute("rollback", ())?; // cancel this transaction
+//!
+//! let sum_age : i32 = database.collect("select sum(age) from user", ())?;
+//! assert!(sum_age == 45);
+//! # Ok::<(), RsqliteError>(())
 //! ```
 
 pub mod bindable;
@@ -316,10 +333,13 @@ impl<'a> Statement<'a> {
 
         let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
 
-        match retcode {
+        let result = match retcode {
             ffi::SQLITE_DONE => Ok(()),
             other => Err(other.into()),
-        }
+        };
+
+        let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
+        result
     }
 
     pub fn collect<R>(&mut self, params: impl Bindable) -> Result<R>
@@ -337,11 +357,13 @@ impl<'a> Statement<'a> {
         result
     }
 
-    pub fn for_each<T>(
-        &mut self,
-        params: impl Bindable,
-        mut iterable: impl Iterable<(), T>,
-    ) -> Result<()> {
+    pub fn for_each<I, T>(&mut self, params: impl Bindable, mut iterable: I) -> Result<()>
+    where
+        I: Iterable<(), T>,
+    {
+        if I::columns_needed() > self.column_count {
+            return Err(ffi::SQLITE_RANGE.into());
+        }
         params.bind(self, &mut 1)?;
 
         let result = loop {

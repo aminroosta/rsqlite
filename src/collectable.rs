@@ -20,7 +20,7 @@ where
         }
     }
 
-    /// number of columns that this type needs
+    /// number of columns needed by this type
     fn columns_needed() -> c_int;
 }
 
