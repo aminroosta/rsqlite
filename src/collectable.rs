@@ -31,7 +31,6 @@ impl Collectable for c_double {
         result
     }
 }
-
 impl Collectable for String {
     fn collect(statement: &Statement, column: &mut c_int) -> Self {
         let ptr = unsafe { ffi::sqlite3_column_text(statement.stmt, *column) };
@@ -44,6 +43,22 @@ impl Collectable for String {
             false => unsafe {
                 let slice = std::slice::from_raw_parts(ptr as *const u8, bytes as usize);
                 String::from_utf8_unchecked(slice.to_owned())
+            },
+        }
+    }
+}
+impl Collectable for Box<[u8]> {
+    fn collect(statement: &Statement, column: &mut c_int) -> Self {
+        let ptr = unsafe { ffi::sqlite3_column_blob(statement.stmt, *column) };
+        let bytes = unsafe { ffi::sqlite3_column_bytes(statement.stmt, *column) };
+
+        *column += 1;
+
+        match bytes == 0 {
+            true => (vec![]).into_boxed_slice(),
+            false => unsafe {
+                let slice = std::slice::from_raw_parts(ptr as *const u8, bytes as usize);
+                slice.to_owned().into_boxed_slice()
             },
         }
     }

@@ -1,11 +1,16 @@
-//! # Ergonamic sqlite library with zero overhead.
+//! # Rsqlite
+//!
+//! This library is a zero-overhead, ergonamic wrapper over sqlite C api.
 //!
 //! ```
 //! # use rsqlite::*;
-//! // open existing database or create a new one
-//! let database = Database::open(":memory:")?;
+//! // creates a database file 'dbfile.db' if it does not exists.
+//! # /*
+//! let database = Database::open("dbfile.db")?;
+//! # */
+//! # let database = Database::open(":memory:")?;
 //!
-//! // execute a query
+//! // executes the query and creates a 'user' table
 //! database.execute(r#"
 //!    create table if not exists user (
 //!       id integer primary key autoincrement not null,
@@ -14,15 +19,39 @@
 //!       weight real
 //!    );"#, ())?;
 //!
-//! // execute with parameters
+//! // inserts a new user record.
+//! // binds the fields to '?' .
+//! // note that only these types are allowed for bindings:
+//! //     int32, i64, f64, &str, &[u8]
+//! // `&str` are stored using sqlite3 utf8 text data type
 //! database.execute(
 //!    "insert into user(age, name, weight) values(?, ?, ?)",
 //!    (29, "amin", 69.5)
 //! )?;
+//! let name = String::from("negar");
 //! database.execute(
 //!    "insert into user(age, name, weight) values(?, ?, ?)",
-//!    (26, "negar", 61.0)
+//!    (26, name.as_str(), 61.0)
 //! )?;
+//!
+//! #[derive(PartialEq, Debug)]
+//! # struct User { name: String, age: i32, weight: f64 };
+//! # let mut users = vec![];
+//!
+//! // slects from user table on a condition ( age > 27 ) and executes
+//! // the closure for each row returned.
+//! database.iterate(
+//!     "select name, age, weight from user where age > ?", (27),
+//!     |name: String, age: i32, weight: f64| {
+//! # /*
+//!         dbg!(name, age, weight);
+//! # */
+//! #       users.push(User { name, age, weight });
+//!     }
+//! )?;
+//! # assert!(users == vec![
+//! #   User { name: "amin".to_owned(), age: 29, weight: 69.5 },
+//! # ]);
 //!
 //! // collect a single row
 //! let info: (i32, String, f64) = database.collect(
@@ -34,23 +63,6 @@
 //! )?;
 //! # assert!(age == 29);
 //!
-//! // given your own data structure:
-//! #[derive(PartialEq, Debug)]
-//! struct User { name: String, age: i32, weight: f64 };
-//! let mut users = vec![];
-//! // collect multiple rows using `.iterate()`
-//! // returned columns should match the lambda arguments
-//! database.iterate(
-//!     "select name, age, weight from user", (),
-//!     |name: String, age: i32, weight: f64| {
-//!         users.push(User { name, age, weight });
-//!     }
-//! )?;
-//!     
-//! # assert!(users == vec![
-//! #   User { name: "amin".to_owned(), age: 29, weight: 69.5 },
-//! #   User { name: "negar".to_owned(), age: 26, weight: 61.0 }
-//! # ]);
 //! # Ok::<(), RsqliteError>(())
 //! ```
 #![allow(incomplete_features)]
