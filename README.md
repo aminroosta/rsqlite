@@ -19,7 +19,7 @@ database.execute(r#"
 // binds the fields to '?' .
 // note that only these types are allowed for bindings:
 //     int32, i64, f64, &str, &[u8]
-// `&str` are stored using sqlite3 utf8 text data type
+// use `&[u8]` to store blob data.
 database.execute(
    "insert into user(age, name, weight) values(?, ?, ?)",
    (29, "amin", 69.5)
@@ -30,10 +30,9 @@ database.execute(
    (26, name.as_str(), 61.0)
 )?;
 
-#[derive(PartialEq, Debug)]
 
-// slects from user table on a condition ( age > 27 ) and executes
-// the closure for each row returned.
+// slects from user table on a condition ( age > 27 ),
+// and executes the closure for each row returned.
 database.iterate(
     "select name, age, weight from user where age > ?", (27),
     |name: String, age: i32, weight: f64| {
@@ -55,3 +54,23 @@ let amin: (i32, String, f64) = database.collect(
 let str_count: String = database.collect("select count(*) from user", ())?;
 
 ```
+
+## Additional flags
+
+You can pass additional open flags to SQLite:
+
+```toml
+[dependencies]
+sqlite3-sys = "*"
+```
+```rust
+use rsqlite::{ffi, Database};
+
+let flags = ffi::SQLITE_READONLY;
+let database = Database::open_with_flags("dbfile.db", flags)?;
+
+// now you can only read from the database
+let n: i32 = database.collect(
+    "select a from table where something >= ?", (1))?;
+```
+##
