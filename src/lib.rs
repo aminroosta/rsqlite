@@ -38,13 +38,11 @@
 //!
 //! // slects from user table on a condition ( age > 27 ),
 //! // and executes the closure for each row returned.
-//! database.iterate(
+//! database.for_each(
 //!     "select name, age, weight from user where age > ?", (27),
 //!     |name: String, age: i32, weight: f64| {
-//! # /*
+//! #       users.push(User { name: name.clone(), age, weight });
 //!         dbg!(name, age, weight);
-//! # */
-//! #       users.push(User { name, age, weight });
 //!     }
 //! )?;
 //! # assert!(users == vec![
@@ -72,7 +70,7 @@
 //! # Additional flags
 //!
 //! You can pass additional open flags to SQLite:
-//! 
+//!
 //! ```toml
 //! [dependencies]
 //! sqlite3-sys = "*"
@@ -89,7 +87,23 @@
 //!     "select a from table where something >= ?", (1))?;
 //! # Ok::<(), RsqliteError>(())
 //! ```
-//! #
+//!
+//! # Prepared Statements
+//!
+//! It is possible to retain and reuse statments, this will keep the query plan and might
+//! increase the performance significantly if the statement is reused.
+//! ```
+//! # use rsqlite::*;
+//! # let mut database = Database::open(":memory:")?;
+//! # database.execute("create table user (name text, age int)", ())?;
+//! let mut statement = database.prepare("select age from user where age > ?")?;
+//! // Database methods are simply implemented in terms of statements.
+//! statement.for_each((27), |age: i32| {
+//!     dbg!(age);
+//! })?;
+//! # Ok::<(), RsqliteError>(())
+//! ```
+//!
 
 pub mod bindable;
 pub mod collectable;
@@ -115,7 +129,7 @@ pub struct Database {
 
 pub struct Statement<'a> {
     pub stmt: *mut ffi::sqlite3_stmt,
-    _marker : PhantomData<&'a Database>,
+    _marker: PhantomData<&'a Database>,
 }
 
 impl Database {
@@ -174,7 +188,10 @@ impl Database {
             ffi::sqlite3_prepare_v2(self.db, sql.as_ptr(), len, &mut stmt, ptr::null_mut())
         };
 
-        let statement = Statement { stmt, _marker: PhantomData };
+        let statement = Statement {
+            stmt,
+            _marker: PhantomData,
+        };
         match retcode {
             ffi::SQLITE_OK => Ok(statement),
             other => Err(other.into()),
@@ -215,45 +232,92 @@ impl Database {
         R: Collectable,
     {
         let mut statement = self.prepare(sql)?;
-        params.bind(&mut statement, &mut 1)?;
-
-        let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
-
-        let result = match retcode {
-            ffi::SQLITE_ROW => Ok(R::collect(&statement, &mut 0)),
-            other => Err(other.into()),
-        };
-
-        let _ = unsafe { ffi::sqlite3_reset(statement.stmt) };
-
-        result
+        statement.collect(params)
     }
 
-    /// iterate over multile rows of data using a colusure
+    /// for_each iterates over multile rows of data using a colusure
     ///
     /// ```
     /// # use rsqlite::*;
     /// # let mut database = Database::open(":memory:")?;
     /// let mut sum = 0;
-    /// database.iterate("select 2 union select 3", (), |x: i32| { sum += x; })?;
+    /// database.for_each("select 2 union select 3", (), |x: i32| { sum += x; })?;
     /// // sum is 5
     /// # assert!(sum == 5);
     /// # Ok::<(), RsqliteError>(())
     /// ```
-    pub fn iterate<T>(
+    pub fn for_each<T>(
         &mut self,
         sql: &str,
         params: impl Bindable,
-        mut iterable: impl Iterable<T>,
+        iterable: impl Iterable<(), T>,
     ) -> Result<()> {
         let mut statement = self.prepare(sql)?;
-        params.bind(&mut statement, &mut 1)?;
-
-        iterable.iterate(&statement)?;
-
-        let _ = unsafe { ffi::sqlite3_reset(statement.stmt) };
-        Ok(())
+        statement.for_each(params, iterable)
     }
+}
+
+impl<'a> Statement<'a> {
+    pub fn collect<R>(&mut self, params: impl Bindable) -> Result<R>
+    where
+        R: Collectable,
+    {
+        params.bind(self, &mut 1)?;
+
+        let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
+
+        let result = match retcode {
+            ffi::SQLITE_ROW => Ok(R::collect(self, &mut 0)),
+            other => Err(other.into()),
+        };
+
+        let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
+
+        result
+    }
+    pub fn for_each<T>(
+        &mut self,
+        params: impl Bindable,
+        mut iterable: impl Iterable<(), T>,
+    ) -> Result<()> {
+        params.bind(self, &mut 1)?;
+
+        let result = loop {
+            let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
+            let mut index = 0;
+
+            match retcode {
+                ffi::SQLITE_ROW => iterable.iterate(self, &mut index),
+                ffi::SQLITE_DONE => break Ok(()),
+                other => break Err(other.into()),
+            };
+        };
+
+        let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
+        result
+    }
+
+    // pub fn iterate<T, R>(
+    //     &mut self,
+    //     params: impl Bindable,
+    //     mut iterable: impl Iterable<T, R>,
+    // ) -> Result<()> {
+    //     params.bind(self, &mut 1)?;
+
+    //     let result = loop {
+    //         let retcode = unsafe { ffi::sqlite3_step(self.stmt) };
+    //         let mut index = 0;
+
+    //         match retcode {
+    //             ffi::SQLITE_ROW => iterable.iterate(self, &mut index),
+    //             ffi::SQLITE_DONE => break Ok(()),
+    //             other => break Err(other.into()),
+    //         };
+    //     };
+
+    //     let _ = unsafe { ffi::sqlite3_reset(self.stmt) };
+    //     result
+    // }
 }
 
 impl Drop for Database {

@@ -1,19 +1,18 @@
 //! Iterable types are expected to iterate over the sqlite rows
-use super::{Collectable, Result, Statement};
-
-use sqlite3_sys as ffi;
+use super::{Collectable, Statement};
+use libc::c_int;
 
 /// This library implements `Iterable` for any `FnMut<T1,...>`
 /// Other types could be implemented in terms of `FnMut`
 ///
-/// ```
+/// ```no_compile
 /// # use rsqlite::*;
 /// #[derive(PartialEq)]
 /// struct User { name: String, age: i32 };
 ///
 /// // implement iterable in term of closures for your own types
 /// impl<> Iterable<User> for &mut Vec<User> {
-///     fn iterate(&mut self, statement: &Statement) -> Result<()> {
+///     fn iterate(&mut self, statement: &mut Statement) -> Result<()> {
 ///         (|name: String, age: i32| {
 ///             self.push(User { name, age });
 ///         })
@@ -37,29 +36,18 @@ use sqlite3_sys as ffi;
 /// ]);
 /// # Ok::<(), RsqliteError>(())
 /// ```
-pub trait Iterable<T> {
-    fn iterate(&mut self, statement: &Statement) -> Result<()>;
+pub trait Iterable<R, T> {
+    fn iterate(&mut self, statement: &mut Statement, index: &mut c_int) -> R;
 }
 
 macro_rules! iterable {
     ($($name:ident),+) => (
-        impl<F, $($name),+> Iterable<($($name),+,)> for F where
-            F: FnMut($($name),+) -> (),
+        impl<F, R, $($name),+> Iterable<R, ($($name),+,)> for F where
+            F: FnMut($($name),+) -> R,
             $($name: Collectable),+
         {
-            fn iterate(&mut self, statement: &Statement) -> Result<()> {
-                loop {
-                    let retcode = unsafe { ffi::sqlite3_step(statement.stmt) };
-                    let mut index = 0;
-
-                    match retcode {
-                        ffi::SQLITE_ROW => (*self)(
-                            $($name::collect(statement, &mut index)),+
-                        ),
-                        ffi::SQLITE_DONE => break Ok(()),
-                        other => break Err(other.into()),
-                    };
-                }
+            fn iterate(&mut self, statement: &mut Statement, index: &mut c_int) -> R {
+                (*self)($($name::collect(statement, index)),+)
             }
         }
     );

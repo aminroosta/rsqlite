@@ -4,7 +4,7 @@ This library is a zero-overhead, ergonamic wrapper over sqlite C api.
 
 ```rust
 // creates a database file 'dbfile.db' if it does not exists.
-let database = Database::open("dbfile.db")?;
+let mut database = Database::open("dbfile.db")?;
 
 // executes the query and creates a 'user' table
 database.execute(r#"
@@ -33,7 +33,7 @@ database.execute(
 
 // slects from user table on a condition ( age > 27 ),
 // and executes the closure for each row returned.
-database.iterate(
+database.for_each(
     "select name, age, weight from user where age > ?", (27),
     |name: String, age: i32, weight: f64| {
         dbg!(name, age, weight);
@@ -67,10 +67,22 @@ sqlite3-sys = "*"
 use rsqlite::{ffi, Database};
 
 let flags = ffi::SQLITE_READONLY;
-let database = Database::open_with_flags("dbfile.db", flags)?;
+let mut database = Database::open_with_flags("dbfile.db", flags)?;
 
 // now you can only read from the database
 let n: i32 = database.collect(
     "select a from table where something >= ?", (1))?;
 ```
-##
+
+## Prepared Statements
+
+It is possible to retain and reuse statments, this will keep the query plan and might
+increase the performance significantly if the statement is reused.
+```rust
+let mut statement = database.prepare("select age from user where age > ?")?;
+// Database methods are simply implemented in terms of statements.
+statement.for_each((27), |age: i32| {
+    dbg!(age);
+})?;
+```
+
