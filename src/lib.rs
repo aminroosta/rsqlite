@@ -53,33 +53,38 @@
 //! #   User { name: "amin".to_owned(), age: 29, weight: 69.5 },
 //! # ]);
 //!
-//! // collect a single row
-//! let info: (i32, String, f64) = database.collect(
+//! // selects the count(*) from user table
+//! // you can extract a single culumn single row result to:
+//! // i32, i64, f64, String, Box<[u8]>
+//! let count: i32 = database.collect("select count(*) from user", ())?;
+//! # assert!(count == 2);
+//!
+//! // you can also extract single row with multiple columns
+//! let amin: (i32, String, f64) = database.collect(
 //!     "select age, name, weight from user where name = ?", ("amin")
 //! )?;
-//! // collect a single row single column
-//! let age: i32 = database.collect(
-//!     "select age from user where name = ?", ("amin")
-//! )?;
-//! # assert!(age == 29);
+//!
+//! // this also works, the returned value will be automatically converted to String
+//! let str_count: String = database.collect("select count(*) from user", ())?;
+//! # assert!(str_count == "2");
 //!
 //! # Ok::<(), RsqliteError>(())
 //! ```
 #![allow(incomplete_features)]
 #![feature(specialization)]
 
-pub mod error;
 pub mod bindable;
 pub mod collectable;
+pub mod error;
 pub mod iterable;
 
-pub use error::RsqliteError;
 pub use bindable::Bindable;
-pub use iterable::Iterable;
 pub use collectable::Collectable;
+pub use error::RsqliteError;
+pub use iterable::Iterable;
 
 use core::ptr;
-use libc::{c_int};
+use libc::c_int;
 use sqlite3_sys as ffi;
 use std::ffi::CString;
 
@@ -204,7 +209,6 @@ impl Database {
         result
     }
 
-
     /// iterate over multile rows of data using a colusure
     ///
     /// ```
@@ -216,7 +220,12 @@ impl Database {
     /// # assert!(sum == 5);
     /// # Ok::<(), RsqliteError>(())
     /// ```
-    pub fn iterate<T>(&self, sql: &str, params: impl Bindable, mut iterable: impl Iterable<T>) -> Result<()> {
+    pub fn iterate<T>(
+        &self,
+        sql: &str,
+        params: impl Bindable,
+        mut iterable: impl Iterable<T>,
+    ) -> Result<()> {
         let statement = self.prepare(sql)?;
         params.bind(&statement, &mut 1)?;
 
@@ -246,4 +255,3 @@ impl Drop for Statement {
         }
     }
 }
-

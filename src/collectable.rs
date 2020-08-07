@@ -65,9 +65,10 @@ impl Collectable for Box<[u8]> {
 }
 
 impl<T0, T1, T2> Collectable for (T0, T1, T2)
-    where T0 : Collectable,
-          T1: Collectable,
-          T2: Collectable,
+where
+    T0: Collectable,
+    T1: Collectable,
+    T2: Collectable,
 {
     fn collect(statement: &Statement, column: &mut c_int) -> Self {
         (
@@ -77,4 +78,3 @@ impl<T0, T1, T2> Collectable for (T0, T1, T2)
         )
     }
 }
-

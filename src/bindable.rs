@@ -1,4 +1,3 @@
-
 use super::{Result, Statement};
 use libc::{c_char, c_double, c_int, c_void};
 use sqlite3_sys as ffi;

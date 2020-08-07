@@ -1,5 +1,5 @@
 //! Iterable types are expected to iterate over the sqlite rows
-use super::{Statement, Collectable, Result};
+use super::{Collectable, Result, Statement};
 
 use sqlite3_sys as ffi;
 
@@ -28,7 +28,7 @@ use sqlite3_sys as ffi;
 ///
 /// let mut users : Vec<User> = vec![];
 /// database.iterate("select name, age from user", (), &mut users);
-/// //                       ^^^^  ^^^ 
+/// //                       ^^^^  ^^^
 /// // note the order of columns must match your Iterable implementation
 ///
 /// assert!(users == vec![
@@ -76,4 +76,4 @@ iterable!(T0, T1, T2, T4, T5, T6, T7, T8);
 iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9);
 iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10);
 iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11);
-iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11, T12); 
+iterable!(T0, T1, T2, T4, T5, T6, T7, T8, T9, T10, T11, T12);
