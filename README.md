@@ -130,9 +130,22 @@ i.e if you collect a `NULL` column as `i32`, you'll get `0`.
 
 ## Transactions
 You can use transactions with `begin`, `commit` and `rollback` commands.
-## use rsqlite::*;
-## let database = Database::open(":memory:")?;
-## database.execute("create table user (name text, age int)", ())?;
 
-db.execute("begin", ())?; // begin a transaction
 ```rust
+
+database.execute("begin", ())?;    // begin a transaction ...
+let mut statement = database.prepare("insert into user(name, age) values (?, ?)")?;
+// insert 10 users using a prepared statement
+for age in 0..10 {
+  let name = format!("user-{}", age);
+  statement.execute((name.as_str(), age))?;
+}
+database.execute("commit", ())?;   // commit all the changes
+
+database.execute("begin", ())?;    // begin another transaction ...
+database.execute("delete from user where age > ?", (3))?;
+database.execute("rollback", ())?; // cancel this transaction
+
+let sum_age : i32 = database.collect("select sum(age) from user", ())?;
+assert!(sum_age == 45);
+```
