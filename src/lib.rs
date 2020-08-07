@@ -159,14 +159,14 @@
 //! # let database = Database::open(":memory:")?;
 //! # database.execute("create table user (name text, age int)", ())?;
 //!
-//! database.execute("begin", ())?; // begin a transaction ...
+//! database.execute("begin", ())?;    // begin a transaction ...
 //! let mut statement = database.prepare("insert into user(name, age) values (?, ?)")?;
 //! // insert 10 users using a prepared statement
 //! for age in 0..10 {
 //!   let name = format!("user-{}", age);
 //!   statement.execute((name.as_str(), age))?;
 //! }
-//! database.execute("commit", ())?;          // commit all the changes
+//! database.execute("commit", ())?;   // commit all the changes
 //!
 //! database.execute("begin", ())?;    // begin another transaction ...
 //! database.execute("delete from user where age > ?", (3))?;
