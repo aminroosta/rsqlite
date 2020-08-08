@@ -4,58 +4,114 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RsqliteError {
+    /// Can not convert the provided String into a CString
     #[error("Can not convert the provided String into a CString - {0}")]
     InvalidCString(#[from] NulError),
-    #[error("SQLITE_ABORT: An operation was aborted prior to completion, usually be application request. See also: SQLITE_INTERRUPT.")]
+    /// SQLITE_ABORT: An operation was aborted prior to completion
+    #[error("SQLITE_ABORT: An operation was aborted prior to completion.")]
     Abort,
+    /// SQLITE_AUTH: An SQL statement being prepared is not authorized.
     #[error("SQLITE_AUTH: An SQL statement being prepared is not authorized.")]
     Auth,
+    /// SQLITE_BUSY: The database file could not be written (or in some cases read).
     #[error("SQLITE_BUSY: The database file could not be written (or in some cases read).")]
     Busy,
-    #[error("SQLITE_CANTOPEN: SQLite was unable to open a file. The file in question might be a primary database file or one of several temporary disk files.")]
+    /// SQLITE_CANTOPEN: SQLite was unable to open a file.
+    #[error("SQLITE_CANTOPEN: SQLite was unable to open a file.")]
     CantOpen,
-    #[error("SQLITE_CONSTRAINT: An SQL constraint violation occurred while trying to process an SQL statement.")]
+    /// SQLITE_CONSTRAINT: An SQL constraint violation occurred.
+    #[error("SQLITE_CONSTRAINT: An SQL constraint violation occurred.")]
     Constraint,
+    /// SQLITE_CORRUPT: The database file has been corrupted.
     #[error("SQLITE_CORRUPT: The database file has been corrupted.")]
     Corrupt,
-    #[error("SQLITE_ERROR: Sqlite generic error code, returned when no other more specific error code is available.")]
+    /// SQLITE_ERROR: Sqlite generic error code.
+    #[error("SQLITE_ERROR: Sqlite generic error code.")]
     Error,
+    /// SQLITE_FULL: A write could not complete because the disk is full.
     #[error("SQLITE_FULL: A write could not complete because the disk is full.")]
     Full,
-    #[error("SQLITE_INTERNAL: An internal malfunction. In a working version of SQLite, an application should never see this result code.")]
+    /// SQLITE_INTERNAL: An internal malfunction. you should never see this.
+    #[error("SQLITE_INTERNAL: An internal malfunction. you should never see this.")]
     Internal,
-    #[error(
-        "SQLITE_INTERRUPT: An operation was interrupted by the sqlite3_interrupt() interface."
-    )]
+    /// SQLITE_INTERRUPT: An operation was interrupted.
+    #[error("SQLITE_INTERRUPT: An operation was interrupted.")]
     Interrupt,
-    #[error("SQLITE_IOERR: the operation could not finish because the operating system reported an I/O error.")]
+    /// SQLITE_IOERR: Operation did not finish because the OS reported an I/O error.
+    #[error("SQLITE_IOERR: Operation could not finish because the OS reported an I/O error.")]
     IOerr,
-    #[error("SQLITE_LOCKED: A write operation could not continue because of a conflict within the same database connection or a conflict with a different database connection that uses a shared cache.")]
+    /// SQLITE_LOCKED: A write operation could not continue because of a conflict
+    /// within the same database connection or a conflict
+    /// with a different database connection that uses a shared cache.
+    #[error(
+        "SQLITE_LOCKED: A write operation could not continue because of a conflict \
+    within the same database connection or a conflict with a different database connection."
+    )]
     Locked,
+    /// SQLITE_MISMATCH: This error code indicates a datatype mismatch.
     #[error("SQLITE_MISMATCH: This error code indicates a datatype mismatch.")]
     Mismatch,
-    #[error("SQLITE_MISUSE: The application used some SQLite interface in a way that is undefined or unsupported.")]
+    /// SQLITE_MISUSE: SQLite interface was used in an undefined or unsupported way.
+    #[error("SQLITE_MISUSE: SQLite interface was used in an undefined or unsupported way.")]
     Misuse,
-    #[error("SQLITE_NOLFS: System does not support large files, or the database grew to be larger than what the filesystem can handle.")]
+    /// SQLITE_NOLFS: System does not support large files,
+    /// or the database grew to be larger than what the filesystem can handle.
+    #[error(
+        "SQLITE_NOLFS: System does not support large files, \
+    or the database grew to be larger than what the filesystem can handle."
+    )]
     Nolfs,
-    #[error("SQLITE_NOMEM: SQLite was unable to allocate all the memory it needed to complete the operation.")]
+    /// SQLITE_NOMEM: SQLite was unable to allocate all the memory \
+    /// it needed to complete the operation.
+    #[error(
+        "SQLITE_NOMEM: SQLite was unable to allocate all the memory 
+    it needed to complete the operation."
+    )]
     Nomem,
-    #[error("SQLITE_NOTADB: The file being opened does not appear to be an SQLite database file.")]
+    /// SQLITE_NOTADB: The file being opened does not appear to be an SQLite database file.
+    #[error(
+        "SQLITE_NOTADB: The file being opened does not appear to be \
+    an SQLite database file."
+    )]
     Notadb,
+    /// SQLITE_NOTFOUND: See https://sqlite.org/rescode.html
     #[error("SQLITE_NOTFOUND: See https://sqlite.org/rescode.html")]
     Notfound,
-    #[error("SQLITE_PERM: The requested access mode for a newly created database could not be provided.")]
+    /// SQLITE_PERM: The requested access mode for a newly created database could not
+    /// be provided.
+    #[error(
+        "SQLITE_PERM: The requested access mode for a \
+    newly created database could not be provided."
+    )]
     Perm,
+    /// SQLITE_PROTOCOL: A problem with the file locking protocol used by SQLite.
     #[error("SQLITE_PROTOCOL: A problem with the file locking protocol used by SQLite.")]
     Protocol,
-    #[error("SQLITE_RANGE: The parameter number argument to one of the sqlite3_bind routines or the column number in one of the sqlite3_column routines is out of range.")]
+    /// SQLITE_RANGE: The parameter number argument to one of the sqlite3_bind routines
+    /// or the column number in one of the sqlite3_column routines is out of range.
+    #[error(
+        "SQLITE_RANGE: The parameter number argument to one of the sqlite3_bind \
+    routines or the column number in one of the sqlite3_column routines is out of range."
+    )]
     Range,
-    #[error("SQLITE_READONLY: An attempt was made to alter some data for which the current database connection does not have write permission.")]
+    /// SQLITE_READONLY: An attempt was made to alter some data for which the current
+    /// database connection does not have write permission.
+    #[error(
+        "SQLITE_READONLY: An attempt was made to alter some data for which the \
+    current database connection does not have write permission."
+    )]
     Readonly,
-    #[error("SQLITE_SCHEMA: The database schema was changed by some other process in between the time that the statement was prepared and the time the statement was run.")]
+    /// SQLITE_SCHEMA: The database schema was changed by some other process in between
+    /// the time that the statement was prepared and the time the statement was run.
+    #[error(
+        "SQLITE_SCHEMA: The database schema was changed by some other process in \
+    between the time that the statement was prepared and the time the statement was run."
+    )]
     Schema,
+    /// SQLITE_TOOBIG: A string or BLOB was too large.
     #[error("SQLITE_TOOBIG: A string or BLOB was too large.")]
     Toobig,
+    /// Unknown SQLITE error, See https://sqlite.org/rescode.html
     #[error("Unknown SQLITE error({0}), See https://sqlite.org/rescode.html")]
     Unknown(c_int),
 }
