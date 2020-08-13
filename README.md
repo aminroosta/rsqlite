@@ -106,6 +106,7 @@ assert!(name == None);
 ## Type conversions
 
 implsit type convertions in sqlite follow this table:
+for example, if you collect a `NULL` column as `i32`, you'll get `0`.
 
 |Internal Type|Requested Type|Conversion
 |-------------|--------------|----------
@@ -113,20 +114,19 @@ implsit type convertions in sqlite follow this table:
 |NULL         |f64   	     |Result is 0.0
 |NULL         |String        |Result is empty `String::new()`
 |NULL         |Box<[u8]>     |Result is empty `Box::new([])`
-|INTEGER      |FLOAT 	     |Convert from integer to float
-|INTEGER      |TEXT 	     |ASCII rendering of the integer
-|INTEGER      |BLOB 	     |Same as INTEGER->TEXT
-|FLOAT        |INTEGER 	     |CAST to INTEGER
-|FLOAT        |TEXT 	     |ASCII rendering of the float
-|FLOAT        |BLOB 	     |CAST to BLOB
-|TEXT         |INTEGER 	     |CAST to INTEGER
-|TEXT         |FLOAT 	     |CAST to REAL
-|TEXT         |BLOB 	     |No change
-|BLOB         |INTEGER 	     |CAST to INTEGER
-|BLOB         |FLOAT 	     |CAST to REAL
-|BLOB         |TEXT 	     |Add a zero terminator if needed
+|INTEGER      |f64   	     |Convert from integer to f64
+|INTEGER      |String        |ASCII rendering of the integer
+|INTEGER      |Box<[u8]>     |Same as INTEGER->String
+|FLOAT        |i32/i64 	     |CAST to INTEGER
+|FLOAT        |String        |ASCII rendering of the float
+|FLOAT        |Box<[u8]>     |CAST to [u8]
+|TEXT         |i32/i64 	     |CAST to i32/i64
+|TEXT         |f64   	     |CAST to f64
+|TEXT         |Box<[u8]>     |No change
+|BLOB         |i32/i64 	     |CAST to i32/i64
+|BLOB         |f64   	     |CAST to f64
+|BLOB         |String        |No change
 
-i.e if you collect a `NULL` column as `i32`, you'll get `0`.
 
 ## Transactions
 You can use transactions with `begin`, `commit` and `rollback` commands.
@@ -149,3 +149,20 @@ database.execute("rollback", ())?; // cancel this transaction
 let sum_age : i32 = database.collect("select sum(age) from user", ())?;
 assert!(sum_age == 45);
 ```
+
+## Blob
+Use `&[u8]` to store and `Box<[u8]>` to retrive blob data.
+
+```rust
+database.execute("create table user (name TEXT, numbers BLOB)", ())?;
+
+let numbers = vec![1, 1, 2, 3, 5];
+database.execute("insert into user values (?, ?)", ("amin", numbers.as_slice()))?;
+let stored_numbers : Box<[u8]> =
+         database.collect("select numbers from user where name = ?", ("amin"))?;
+assert!(numbers.as_slice() == stored_numbers.as_ref());
+```
+
+### License
+
+MIT license - http://www.opensource.org/licenses/mit-license.php
