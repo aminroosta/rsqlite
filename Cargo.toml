@@ -1,8 +1,13 @@
 [package]
+description = "Zero overhead, ergonamic wrapper over sqlite C api"
 name = "rsqlite"
 version = "1.0.0"
-authors = ["amin"]
+authors = ["amin roosta @amnrst"]
 edition = "2018"
+license = "MIT"
+homepage = "https://github.com/aminroosta/rsqlite"
+repository = "https://github.com/aminroosta/rsqlite"
+readme = "README.md"
 
 [dependencies]
 sqlite3-sys = "0.18"
